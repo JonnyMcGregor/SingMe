@@ -8,4 +8,5 @@ sing all of the notes within that time limit, they pass to a progressively more 
 The images above are designs for how SingMe will look upon completion. So far I have programmed most of the game mechanics and have used an FFT class to process the audio. I am still yet to implement animations and a leaderboard system.
 
 *This application is still in development, and any suggestions to make the program more efficient would be incredibly welcome :)*
+
 Contact: Jonny McGregor - jonny.mcgregor1@gmail.com
