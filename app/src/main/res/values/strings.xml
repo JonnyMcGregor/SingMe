@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">JonnyLearnsAudio</string>
+    <string name="title_activity_main_menu">MainMenu</string>
+
+    <string name="title_activity_game">GameActivity</string>
+    <string name="dummy_button">Dummy Button</string>
+    <string name="dummy_content">DUMMY\nCONTENT</string>
+    <string name="stop">Stop</string>
+    <string name="back">Pause</string>
+    <string name="start">Start</string>
+    <string name="singme">SingMe!</string>
+    <string name="how_to_play">How To Play</string>
+    <string name="para_01">Tap on a bubble and sing at the same pitch to make it disappear.</string>
+    <string name="para_02">Pop all of the bubbles before the time runs out to proceed to the next level.</string>
+    <string name="para_03">Tap SingMe! to start</string>
+    <string name="paused">Paused</string>
+    <string name="points">Points</string>
+    <string name="play">Play!</string>
+    <string name="background">background</string>
+    <string name="circleimage2">circleImage2</string>
+    <string name="circleimage1">circleimage1</string>
+    <string name="timer">timer</string>
+</resources>
