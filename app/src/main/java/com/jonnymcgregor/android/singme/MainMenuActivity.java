@@ -1,8 +1,12 @@
 package com.jonnymcgregor.android.singme;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -21,7 +25,7 @@ public class MainMenuActivity extends AppCompatActivity {
     public TextView paragraph1;
     public TextView paragraph2;
     public TextView paragraph3;
-
+    private int MY_PERMISSIONS_REQUEST_RECORD_AUDIO = 1;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -37,7 +41,12 @@ public class MainMenuActivity extends AppCompatActivity {
         paragraph1 = (TextView)findViewById((R.id.paragraph1));
         paragraph2 = (TextView)findViewById((R.id.paragraph2));
         paragraph3 = (TextView)findViewById((R.id.paragraph3));
-
+        if (ContextCompat.checkSelfPermission(this,
+                Manifest.permission.RECORD_AUDIO)
+                != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.RECORD_AUDIO}, MY_PERMISSIONS_REQUEST_RECORD_AUDIO);
+        }
     }
 
     public void helpClicked(View view)

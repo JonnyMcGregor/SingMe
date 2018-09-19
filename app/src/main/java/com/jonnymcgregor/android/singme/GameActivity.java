@@ -1,13 +1,18 @@
 package com.jonnymcgregor.android.singme;
 
+import android.Manifest;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.os.Bundle;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
@@ -29,6 +34,8 @@ public class GameActivity extends AppCompatActivity {
 
     private static final int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_FLOAT;
 
+    private static final String TAG = null;
+
     private int RECORDER_BUFFERSIZE = 2048;
     // AudioRecord.getMinBufferSize(RECORDER_SAMPLERATE,
     //RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING);
@@ -37,8 +44,6 @@ public class GameActivity extends AppCompatActivity {
     private MediaPlayer mediaPlayer = null;
 
     private boolean isRecording = false;
-
-    private Complex[] fftResult;
 
     private Thread recordingThread = null;
 
@@ -68,8 +73,6 @@ public class GameActivity extends AppCompatActivity {
 
     private Button pauseButton;
 
-    private float[] buttonFreq = new float[10];
-
     private int[] audioId = new int[10];
 
     private int levelNo = 1;
@@ -81,6 +84,8 @@ public class GameActivity extends AppCompatActivity {
     private float noteArray[] = new float[13];
 
     private int audioArray[] = new int[13];
+
+    private float buttonFreq[] = new float[10];
 
     public int avgCounter = 0;
 
@@ -139,9 +144,8 @@ public class GameActivity extends AppCompatActivity {
     private void initialiseButtons() {
         for (int i = 0; i < numberOfButtons; i++) {
             bubble[i].setVisibility(View.VISIBLE);
-            bubble[i].setOnClickListener(btnClick);
         }
-        pauseButton.setOnClickListener(btnClick);
+        pauseButton.setOnClickListener(pauseClick);
     }
 
     private void setButtonHandlers() {
@@ -159,27 +163,32 @@ public class GameActivity extends AppCompatActivity {
     }
 
     private void checkBubbles() {
-        for (int i = 0; i < numberOfButtons; i++) {
-            if (bubble[i].isPressed() && averageFundamental < (buttonFreq[i] + 2*frequencyResolution)
-                    && averageFundamental > (buttonFreq[i] - 2*frequencyResolution)) {
+        //for (int i = 0; i < numberOfButtons; i++) {
+            if (bubble[activeButton].isPressed() &&averageFundamental < (buttonFreq[activeButton] + 2*frequencyResolution)
+                    && averageFundamental > (buttonFreq[activeButton] - 2*frequencyResolution)) {
                 stopRecording();
+               try{
                 mediaPlayer.stop();
                 mediaPlayer.release();
-                mediaPlayer = null;
-                bubble[i].setVisibility(View.INVISIBLE);
-                bubble[i].setActivated(false);
+                mediaPlayer = null;} catch(Exception e){
+                   e.printStackTrace();
+                   Log.e(TAG, "error:" + e.getMessage());
+               }
+
+                bubble[activeButton].setActivated(false);
                 numberOfButtons--;
 
             }
-        }
+        //}
     }
 
     private void setLevelParameters() {
-        numberOfButtons = 5; //levelNo * 3 - levelNo;
+        numberOfButtons = 5;
         for (int i = 0; i < numberOfButtons; i++) {
             int random = new Random().nextInt(12);
             buttonFreq[i] = noteArray[random];
             audioId[i] = audioArray[random];
+
         }
         startTime = 30000;
     }
@@ -244,8 +253,9 @@ public class GameActivity extends AppCompatActivity {
 
                 while (isRecording) //loop for audio processing
                 {
+                    //read audio data from device and fill audioData[]
+                    recorder.read(audioData, 0, RECORDER_BUFFERSIZE, AudioRecord.READ_NON_BLOCKING);
 
-                    recorder.read(audioData, 0, RECORDER_BUFFERSIZE, AudioRecord.READ_NON_BLOCKING); //read audio data from device and fill audioData[]
                     //Complex[] complexData = new Complex[audioData.length]; //create complex array for audio data
                     for (int i = 0; i < audioData.length; i++) {
                         emptyArray[i] = 0;//iterate through buffer and fill complex array with audio data.
@@ -266,42 +276,67 @@ public class GameActivity extends AppCompatActivity {
     private void stopRecording() {
         // stops the recording activity by setting everything to default states
         // NOTE: THREAD MUST BE CLOSED HERE.
-        if (null != recorder) {
-            isRecording = false;
-            recorder.stop();
-            recorder.release();
-            recorder = null;
-            recordingThread = null;
+        if (isRecording == true) {
+            try {
+                isRecording = false;
+                recorder.stop();
+                recorder.release();
+                recorder = null;
+                recordingThread = null;
+            }catch(Exception e){
+                e.printStackTrace();
+                Log.e(TAG, "error:" + e.getMessage());
+            }
         }
     }
 
-    private void bubbleStartLogic() {
-        for (int i = 0; i <= numberOfButtons; ++i) {
-            if (activeButton == i) {
-                startRecording();
-                mediaPlayer = MediaPlayer.create(this, audioId[i]);
-                mediaPlayer.start();
-            }
-        }
+    private void bubbleStartLogic(int currentNoteId) {
+        startRecording();
+        mediaPlayer = MediaPlayer.create(this, audioId[currentNoteId]);
+        mediaPlayer.start();
     }
 
     private void bubbleStopLogic() {
 
             stopRecording();
-            mediaPlayer.stop();
-            mediaPlayer.reset();
-            mediaPlayer.release();
-            mediaPlayer = null;
+            try {
+                mediaPlayer.stop();
+                mediaPlayer.reset();
+                mediaPlayer.release();
+                mediaPlayer = null;
+            }catch(Exception e){
+                e.printStackTrace();
+                Log.e(TAG, "error:" + e.getMessage());
+            }
 
 
     }
 
-    private View.OnClickListener btnClick = new View.OnClickListener() {
+    public void OnClick(View v)
+    {
+        //if another button is pressed, turn that button off and stop recording/media player
+        int activeId = v.getId();
+        for(int i = 0;i < numberOfButtons; i++){
+            if(bubble[i].getId() != activeId){
+                bubble[i].setChecked(false);
+                bubbleStopLogic();
+            }
+            else{
+                activeButton = i;
+            }
+
+        }
+        //if button is turned on, play sound and start recording
+        if(bubble[activeButton].isChecked()){
+            bubbleStartLogic(activeButton);
+        }
+
+    }
+
+    private View.OnClickListener pauseClick = new View.OnClickListener() {
 
         public void onClick(View v) {
 
-
-            if (pauseButton.isPressed()) {
 
                 final AlertDialog.Builder mBuilder = new AlertDialog.Builder(GameActivity.this);
                 View mView = getLayoutInflater().inflate(R.layout.dialog_pause_menu, null);
@@ -310,28 +345,16 @@ public class GameActivity extends AppCompatActivity {
                 mBuilder.setView(mView);
                 final AlertDialog dialog = mBuilder.create();
                 timer.pause();
+                bubbleStopLogic();
                 dialog.show();
                 mPlay.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
                         dialog.hide();
                         timer.start();
+
                     }
                 });
-            } else {
-
-                for (int i = 0; i <= numberOfButtons; i++) {
-                    if (bubble[i].isChecked()) {
-                        activeButton = i;
-                        System.out.println("ACTIVE BUTTON = " + activeButton);
-                        bubbleStartLogic();
-                    }
-                }
-                if (!bubble[activeButton].isChecked()) {
-                    activeButton = -1;
-                    bubbleStopLogic();
-                }
-            }
         }
     };
 
@@ -393,9 +416,10 @@ public class GameActivity extends AppCompatActivity {
         //System.out.println("Index of Fundamental: " + highestIndex + " Approx Frequency of Fundamental: " + fundamentalFrequency);
         averageFundamental = dataSmoothing(fundamentalFrequency);
         System.out.println("Averaged Fundamental = " + averageFundamental);
-
+        dataSmoothing(fundamentalFrequency);
+        checkBubbles();
         //average before you check bubbles
-        checkBubbles();//checks if fundamental frequency aligns with buttonFreq
+        //checks if fundamental frequency aligns with buttonFreq
     }
 
     // onClick of backbutton finishes the activity.
@@ -404,12 +428,16 @@ public class GameActivity extends AppCompatActivity {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
 
             if (isRecording) {
-                isRecording = false;
+                try{
                 recorder.stop();
                 recorder.release();
+                isRecording = false;
                 recorder = null;
                 recordingThread = null;
-                finish();
+                finish();}catch(Exception e){
+                    e.printStackTrace();
+                    Log.e(TAG, "error:" + e.getMessage());
+                }
 
             } else {
                 finish();

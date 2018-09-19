@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">JonnyLearnsAudio</string>
+    <string name="app_name">SingMe!</string>
     <string name="title_activity_main_menu">MainMenu</string>
 
     <string name="title_activity_game">GameActivity</string>
@@ -20,4 +20,5 @@
     <string name="circleimage2">circleImage2</string>
     <string name="circleimage1">circleimage1</string>
     <string name="timer">timer</string>
+
 </resources>
