@@ -1,15 +1,12 @@
 package com.jonnymcgregor.android.singme;
 
-import android.Manifest;
-import android.content.pm.PackageManager;
+import android.content.Intent;
 import android.graphics.Color;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaPlayer;
 import android.media.MediaRecorder;
 import android.os.Bundle;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
@@ -21,13 +18,14 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.ToggleButton;
 
+import java.sql.SQLOutput;
 import java.util.LinkedList;
 import java.util.Random;
 
 
 public class GameActivity extends AppCompatActivity {
 
-
+    //Audio Params Setup
     private static final int RECORDER_SAMPLERATE = 44100;
 
     private static final int RECORDER_CHANNELS = AudioFormat.CHANNEL_IN_MONO;
@@ -35,23 +33,32 @@ public class GameActivity extends AppCompatActivity {
     private static final int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_FLOAT;
 
     private static final String TAG = null;
+    private final Object GameActivity = this;
 
     private int RECORDER_BUFFERSIZE = 2048;
+
     // AudioRecord.getMinBufferSize(RECORDER_SAMPLERATE,
     //RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING);
-    private AudioRecord recorder = null;  //short array that pcm data is put into.
+
+    private AudioRecord recorder = null;
 
     private MediaPlayer mediaPlayer = null;
 
     private boolean isRecording = false;
 
+    //Thread Instantiation
     private Thread recordingThread = null;
 
-    public float numberOfBins = 2048 / 2;
+    private Thread visualThread = null;
+
+    private Thread gameLoopThread = null;
+
+    //FFT Object setup
+    public float numberOfBins = RECORDER_BUFFERSIZE / 2;
 
     public float frequencyResolution = RECORDER_SAMPLERATE / RECORDER_BUFFERSIZE;
 
-    public int lowestBinForVocals = 200 / ((int) frequencyResolution);
+    public int lowestBinForVocals = 140 / ((int) frequencyResolution);
 
     public FFT fft;
 
@@ -75,9 +82,11 @@ public class GameActivity extends AppCompatActivity {
 
     private int[] audioId = new int[10];
 
+    private float buttonFreq[] = new float[10];
+
     private int levelNo = 1;
 
-    private int activeButton = 0;
+    private int activeButton;
 
     private int numberOfButtons = 3;
 
@@ -85,11 +94,11 @@ public class GameActivity extends AppCompatActivity {
 
     private int audioArray[] = new int[13];
 
-    private float buttonFreq[] = new float[10];
-
     public int avgCounter = 0;
 
     public double averageFundamental = 0;
+
+    public boolean removeActiveButton = false;
 
     private void setAudioIds() {
         audioArray[0] = R.raw.c4;
@@ -136,11 +145,98 @@ public class GameActivity extends AppCompatActivity {
         setAudioIds();
         timerText = (TextView) findViewById(R.id.timerText);
         timerText.setTextColor(Color.WHITE);
-        fft = new FFT (2048);
-        mainLoop();
-
+        fft = new FFT(2048);
+        StartLevel();
     }
 
+    private void VisualCanvasCreate(){
+        visualThread = new Thread (new Runnable(){
+            public void run() {
+                initialiseButtons();
+                //int test = 0;
+                while(true){
+                    /*synchronized (this) {
+                        try {
+                            System.out.println("waiting...");
+                            wait();
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+
+                    }*/
+                    //System.out.println("Continuing...");
+                    if (removeActiveButton == true) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+
+                            bubble[activeButton].setChecked(false);
+                            bubble[activeButton].setActivated(false);
+                            bubble[activeButton].setVisibility(View.INVISIBLE);
+                            numberOfButtons--;
+                            //removeActiveButton = false;
+                            System.out.println("Removing active button...");
+
+                        }
+                    });
+                    }
+
+                   //System.out.println("While True Check: " + test);
+                }
+            }
+        }, "Visual Thread");
+        visualThread.start();
+    }
+    private void StartLevel() {
+        setLevelParameters();
+        initialiseButtons();
+        //MainLoop();
+        //VisualCanvasCreate();
+        timeRemaining = startTime;
+        startTimer();
+        MainLoop();
+
+
+        //CHECK IF VIEW MUST BE CHANGED
+    }
+    private void MainLoop() {
+
+
+        //How can I loop this without app getting fucked?
+        //I need to call view changes from the main thread therefore checkBubbles() can't do it.
+        //
+        //wait()/notify() doesn't work either...
+         /* synchronized (this) {
+            try {
+                wait();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }*/
+
+        gameLoopThread = new Thread(new Runnable(){
+            public void run(){
+                System.out.println("GameLoop has Begun");
+                while(true) {
+                    if (numberOfButtons == 0) {
+                        //WINNER!!!
+                        gameLoopThread = null;
+                    }
+                    if (timeRemaining == 0) {
+                        //LOSER!!!
+                        System.out.println("You Lose!");
+                         mediaPlayer.stop();
+                         stopRecording();
+                        Intent intent = new Intent(getApplicationContext(), MainMenuActivity.class);
+                        startActivity(intent);
+                    }
+                }
+            }
+        },"Game Loop Thread");
+        gameLoopThread.start();
+
+
+    }
     private void initialiseButtons() {
         for (int i = 0; i < numberOfButtons; i++) {
             bubble[i].setVisibility(View.VISIBLE);
@@ -161,37 +257,44 @@ public class GameActivity extends AppCompatActivity {
         bubble[9] = (ToggleButton) findViewById(R.id.bubble10);
         pauseButton = (Button) findViewById(R.id.btnPause);
     }
+    private void setLevelParameters() {
+        numberOfButtons = 3;
+        for (int i = 0; i < numberOfButtons; i++) {
+            int random = new Random().nextInt(6);
+            buttonFreq[i] = noteArray[random];
+            audioId[i] = audioArray[random];
+            //Check buttonFreq and audioId are matching
+            System.out.println(buttonFreq[i] + " = " + audioId[i]);
+        }
+        startTime = 15000;
+    }
 
     private void checkBubbles() {
         //for (int i = 0; i < numberOfButtons; i++) {
-            if (bubble[activeButton].isPressed() &&averageFundamental < (buttonFreq[activeButton] + 2*frequencyResolution)
-                    && averageFundamental > (buttonFreq[activeButton] - 2*frequencyResolution)) {
-                stopRecording();
-               try{
+        if (bubble[activeButton].isChecked() && averageFundamental < (buttonFreq[activeButton] + frequencyResolution)
+                && averageFundamental > (buttonFreq[activeButton] - frequencyResolution)) {
+
+            System.out.println("Avg Fundamental: " + averageFundamental + " Active Frequency: " + buttonFreq[activeButton]);
+
+            stopRecording();
+            try {
                 mediaPlayer.stop();
                 mediaPlayer.release();
-                mediaPlayer = null;} catch(Exception e){
-                   e.printStackTrace();
-                   Log.e(TAG, "error:" + e.getMessage());
-               }
-
-                bubble[activeButton].setActivated(false);
-                numberOfButtons--;
-
+                mediaPlayer = null;
+            } catch (Exception e) {
+                e.printStackTrace();
+                Log.e(TAG, "error:" + e.getMessage());
             }
+            //removeActiveButton = true;
+            removeActiveButton();
+            averageFundamental = 0;
+            /*synchronized (this){
+                notify();
+            }*/
+        }
         //}
     }
 
-    private void setLevelParameters() {
-        numberOfButtons = 5;
-        for (int i = 0; i < numberOfButtons; i++) {
-            int random = new Random().nextInt(12);
-            buttonFreq[i] = noteArray[random];
-            audioId[i] = audioArray[random];
-
-        }
-        startTime = 30000;
-    }
 
     private void startTimer() {
         timer = new CountDownTimerPausable(timeRemaining, 1000) {
@@ -210,23 +313,22 @@ public class GameActivity extends AppCompatActivity {
         }.start();
     }
 
-    private void mainLoop() {
-        setLevelParameters();
-        initialiseButtons();
-        timeRemaining = startTime;
-        startTimer();
+    public void removeActiveButton(){
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
 
-            if (timeRemaining == 0) {
-                //do game over stuff
+                bubble[activeButton].setChecked(false);
+                bubble[activeButton].setActivated(false);
+                bubble[activeButton].setVisibility(View.INVISIBLE);
+                numberOfButtons--;
+                removeActiveButton = false;
+                System.out.println("Removing active button...");
+
+
             }
-            if (numberOfButtons == 0) {
-                //do win stuff
-                levelNo++;
-            }
-
-
+        });
     }
-
     private void startRecording() {
 
         /*
@@ -283,7 +385,7 @@ public class GameActivity extends AppCompatActivity {
                 recorder.release();
                 recorder = null;
                 recordingThread = null;
-            }catch(Exception e){
+            } catch (Exception e) {
                 e.printStackTrace();
                 Log.e(TAG, "error:" + e.getMessage());
             }
@@ -298,36 +400,34 @@ public class GameActivity extends AppCompatActivity {
 
     private void bubbleStopLogic() {
 
-            stopRecording();
-            try {
-                mediaPlayer.stop();
-                mediaPlayer.reset();
-                mediaPlayer.release();
-                mediaPlayer = null;
-            }catch(Exception e){
-                e.printStackTrace();
-                Log.e(TAG, "error:" + e.getMessage());
-            }
+        stopRecording();
+        try {
+            mediaPlayer.stop();
+            mediaPlayer.reset();
+            mediaPlayer.release();
+            mediaPlayer = null;
+        } catch (Exception e) {
+            e.printStackTrace();
+            Log.e(TAG, "error:" + e.getMessage());
+        }
 
 
     }
 
-    public void OnClick(View v)
-    {
+    public void OnClick(View v) {
         //if another button is pressed, turn that button off and stop recording/media player
         int activeId = v.getId();
-        for(int i = 0;i < numberOfButtons; i++){
-            if(bubble[i].getId() != activeId){
+        for (int i = 0; i < numberOfButtons; i++) {
+            if (bubble[i].getId() != activeId) {
                 bubble[i].setChecked(false);
                 bubbleStopLogic();
-            }
-            else{
+            } else {
                 activeButton = i;
             }
 
         }
         //if button is turned on, play sound and start recording
-        if(bubble[activeButton].isChecked()){
+        if (bubble[activeButton].isChecked()) {
             bubbleStartLogic(activeButton);
         }
 
@@ -336,38 +436,33 @@ public class GameActivity extends AppCompatActivity {
     private View.OnClickListener pauseClick = new View.OnClickListener() {
 
         public void onClick(View v) {
+            final AlertDialog.Builder mBuilder = new AlertDialog.Builder(GameActivity.this);
+            View mView = getLayoutInflater().inflate(R.layout.dialog_pause_menu, null);
+            TextView mPoints = (TextView) mView.findViewById(R.id.points);
+            Button mPlay = (Button) mView.findViewById(R.id.resume);
+            mBuilder.setView(mView);
+            final AlertDialog dialog = mBuilder.create();
+            timer.pause();
+            bubbleStopLogic();
+            dialog.show();
+            mPlay.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    dialog.hide();
+                    timer.start();
 
-
-                final AlertDialog.Builder mBuilder = new AlertDialog.Builder(GameActivity.this);
-                View mView = getLayoutInflater().inflate(R.layout.dialog_pause_menu, null);
-                TextView mPoints = (TextView) mView.findViewById(R.id.points);
-                Button mPlay = (Button) mView.findViewById(R.id.resume);
-                mBuilder.setView(mView);
-                final AlertDialog dialog = mBuilder.create();
-                timer.pause();
-                bubbleStopLogic();
-                dialog.show();
-                mPlay.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View view) {
-                        dialog.hide();
-                        timer.start();
-
-                    }
-                });
+                }
+            });
         }
     };
 
-    public synchronized double dataSmoothing(double value)
-    {
+    public synchronized double dataSmoothing(double value) {
         LinkedList values = new LinkedList();
-
         double sum = 0;
 
-        double average = 0;
+        double average;
 
-        if (values.size() == avgCounter && avgCounter > 0)
-        {
+        if (values.size() == avgCounter && avgCounter > 0) {
             sum -= ((Double) values.getFirst()).doubleValue();
             values.removeFirst();
             avgCounter--;
@@ -388,7 +483,7 @@ public class GameActivity extends AppCompatActivity {
 
         int highestIndex = 0;
         double fundamentalMagnitude = 0;
-        double currentValueReal = 0;
+        double currentValueReal;
 
         for (int i = lowestBinForVocals; i < numberOfBins; i++)//note that we don't start at 0 in the for() loop. This is because the fft
         {                                                       //constantly gets shit data in the first couple of bins, most of these
@@ -400,7 +495,7 @@ public class GameActivity extends AppCompatActivity {
              * will contain the bin value of the fundamental frequency.
              */
 
-            if (currentValueReal > fundamentalMagnitude) {
+            if (currentValueReal > fundamentalMagnitude && currentValueReal > 5.0f) {
                 fundamentalMagnitude = currentValueReal;
                 highestIndex = i;
             }
@@ -415,8 +510,8 @@ public class GameActivity extends AppCompatActivity {
         fundamentalFrequency = highestIndex * frequencyResolution;
         //System.out.println("Index of Fundamental: " + highestIndex + " Approx Frequency of Fundamental: " + fundamentalFrequency);
         averageFundamental = dataSmoothing(fundamentalFrequency);
-        System.out.println("Averaged Fundamental = " + averageFundamental);
-        dataSmoothing(fundamentalFrequency);
+        //System.out.println("Averaged Fundamental = " + averageFundamental);
+        //System.out.println("Fundamental Magnitude: " + fundamentalMagnitude);
         checkBubbles();
         //average before you check bubbles
         //checks if fundamental frequency aligns with buttonFreq
@@ -428,13 +523,14 @@ public class GameActivity extends AppCompatActivity {
         if (keyCode == KeyEvent.KEYCODE_BACK) {
 
             if (isRecording) {
-                try{
-                recorder.stop();
-                recorder.release();
-                isRecording = false;
-                recorder = null;
-                recordingThread = null;
-                finish();}catch(Exception e){
+                try {
+                    recorder.stop();
+                    recorder.release();
+                    isRecording = false;
+                    recorder = null;
+                    recordingThread = null;
+                    finish();
+                } catch (Exception e) {
                     e.printStackTrace();
                     Log.e(TAG, "error:" + e.getMessage());
                 }
