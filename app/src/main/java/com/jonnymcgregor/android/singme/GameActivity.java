@@ -37,9 +37,6 @@ public class GameActivity extends AppCompatActivity {
 
     private int RECORDER_BUFFERSIZE = 2048;
 
-    // AudioRecord.getMinBufferSize(RECORDER_SAMPLERATE,
-    //RECORDER_CHANNELS, RECORDER_AUDIO_ENCODING);
-
     private AudioRecord recorder = null;
 
     private MediaPlayer mediaPlayer = null;
@@ -155,16 +152,6 @@ public class GameActivity extends AppCompatActivity {
                 initialiseButtons();
                 //int test = 0;
                 while(true){
-                    /*synchronized (this) {
-                        try {
-                            System.out.println("waiting...");
-                            wait();
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-
-                    }*/
-                    //System.out.println("Continuing...");
                     if (removeActiveButton == true) {
                     runOnUiThread(new Runnable() {
                         @Override
@@ -174,14 +161,11 @@ public class GameActivity extends AppCompatActivity {
                             bubble[activeButton].setActivated(false);
                             bubble[activeButton].setVisibility(View.INVISIBLE);
                             numberOfButtons--;
-                            //removeActiveButton = false;
                             System.out.println("Removing active button...");
 
                         }
                     });
                     }
-
-                   //System.out.println("While True Check: " + test);
                 }
             }
         }, "Visual Thread");
@@ -190,30 +174,11 @@ public class GameActivity extends AppCompatActivity {
     private void StartLevel() {
         setLevelParameters();
         initialiseButtons();
-        //MainLoop();
-        //VisualCanvasCreate();
         timeRemaining = startTime;
         startTimer();
         MainLoop();
-
-
-        //CHECK IF VIEW MUST BE CHANGED
     }
     private void MainLoop() {
-
-
-        //How can I loop this without app getting fucked?
-        //I need to call view changes from the main thread therefore checkBubbles() can't do it.
-        //
-        //wait()/notify() doesn't work either...
-         /* synchronized (this) {
-            try {
-                wait();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }*/
-
         gameLoopThread = new Thread(new Runnable(){
             public void run(){
                 System.out.println("GameLoop has Begun");
@@ -234,8 +199,6 @@ public class GameActivity extends AppCompatActivity {
             }
         },"Game Loop Thread");
         gameLoopThread.start();
-
-
     }
     private void initialiseButtons() {
         for (int i = 0; i < numberOfButtons; i++) {
@@ -270,7 +233,6 @@ public class GameActivity extends AppCompatActivity {
     }
 
     private void checkBubbles() {
-        //for (int i = 0; i < numberOfButtons; i++) {
         if (bubble[activeButton].isChecked() && averageFundamental < (buttonFreq[activeButton] + frequencyResolution)
                 && averageFundamental > (buttonFreq[activeButton] - frequencyResolution)) {
 
@@ -285,14 +247,9 @@ public class GameActivity extends AppCompatActivity {
                 e.printStackTrace();
                 Log.e(TAG, "error:" + e.getMessage());
             }
-            //removeActiveButton = true;
             removeActiveButton();
             averageFundamental = 0;
-            /*synchronized (this){
-                notify();
-            }*/
-        }
-        //}
+           }
     }
 
 
@@ -302,8 +259,6 @@ public class GameActivity extends AppCompatActivity {
             public void onTick(long millisUntilFinished) {
                 timeRemaining = millisUntilFinished;
                 timerText.setText("" + timeRemaining / 1000);
-                //here you can have your logic to set text to edittext
-
             }
 
             public void onFinish() {
@@ -336,7 +291,7 @@ public class GameActivity extends AppCompatActivity {
          * A new thread is required to allow button functionality which will break the record loop as required.
          * recorder.read() is used to read the audio from the hardware and print into audioData[].
          * audioData[] is the size of a single buffer. The info in audioData[] is then converted into
-         * a complex array in preparation for FFT. FFT is then fed that data.        *
+         * a complex array in preparation for FFT. FFT is then fed that data.
          */
 
         recorder = new AudioRecord(MediaRecorder.AudioSource.MIC,   //setup the AudioRecord object.
@@ -358,16 +313,12 @@ public class GameActivity extends AppCompatActivity {
                     //read audio data from device and fill audioData[]
                     recorder.read(audioData, 0, RECORDER_BUFFERSIZE, AudioRecord.READ_NON_BLOCKING);
 
-                    //Complex[] complexData = new Complex[audioData.length]; //create complex array for audio data
                     for (int i = 0; i < audioData.length; i++) {
                         emptyArray[i] = 0;//iterate through buffer and fill complex array with audio data.
                         realArray[i] = audioData[i];
-                        //System.out.println("AudioData: " + audioData[i]);
                     }
                     fft.fft(realArray, emptyArray);//feed complex audio data into FFT object.
-                    //System.out.println("FFTData: " + fftResult[5]);
                     calculateFundamental();//run calculations of estimated fundamental frequency
-
                 }
             }
         }, "AudioRecorder Thread");
@@ -476,7 +427,7 @@ public class GameActivity extends AppCompatActivity {
 
     private void calculateFundamental() {
         /*
-        this function calculates the fundamental freq of the incoming signal by iterating through the fft
+        calculates the fundamental freq of the incoming signal by iterating through the fft
         array and determining which bin has the largest magnitude and therefore the most dominant frequency. Then the starting
         frequency of that bin is calculated and used as the fundamental value. So not quite the exact fundamental, but close enough.
         */
@@ -486,13 +437,11 @@ public class GameActivity extends AppCompatActivity {
         double currentValueReal;
 
         for (int i = lowestBinForVocals; i < numberOfBins; i++)//note that we don't start at 0 in the for() loop. This is because the fft
-        {                                                       //constantly gets shit data in the first couple of bins, most of these
+        {                                                       //constantly gets false data in the first couple of bins, most of these
             currentValueReal = realArray[i];                        //frequencies are lower than what we can hear.
 
             /*
-             * this if() statement will iterate through every bin and, by process of elimination, will select the bin with the largest magnitude
-             * to be the fundamentalMagnitude, the index of that bin will then be stored in highestIndex. When the loop is finished, highestIndex
-             * will contain the bin value of the fundamental frequency.
+             * iterates through each bin and will select the bin with the largest magnitude
              */
 
             if (currentValueReal > fundamentalMagnitude && currentValueReal > 5.0f) {
@@ -501,22 +450,12 @@ public class GameActivity extends AppCompatActivity {
             }
 
         }
-
-        /*
-         * The equation below takes the frequency resolution of a single bin and multiplies it by the index number
-         * of fundamentalMagnitude, thus giving us the approximate fundamental frequency.
-         */
-
+  
+        // calculate the approximate fundamental frequency...
         fundamentalFrequency = highestIndex * frequencyResolution;
-        //System.out.println("Index of Fundamental: " + highestIndex + " Approx Frequency of Fundamental: " + fundamentalFrequency);
         averageFundamental = dataSmoothing(fundamentalFrequency);
-        //System.out.println("Averaged Fundamental = " + averageFundamental);
-        //System.out.println("Fundamental Magnitude: " + fundamentalMagnitude);
         checkBubbles();
-        //average before you check bubbles
-        //checks if fundamental frequency aligns with buttonFreq
     }
-
     // onClick of backbutton finishes the activity.
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
